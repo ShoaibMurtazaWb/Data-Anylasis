@@ -75,48 +75,48 @@ df = coerce_schema(df)
 df = add_computed(df)
 df = df.dropna(subset=[c for c in ["net_sales", "gross_sales", "quantity"] if c in df.columns])
 
-# ------------------------------------------
-# Sidebar filters only
-# ------------------------------------------
-with st.sidebar:
-    st.header("🔧 Filters")
-    st.caption("Using default dataset: **data/ecommerce_dataset.csv**")
-    st.caption("Expected columns: " + ", ".join(EXPECTED_COLS))
+# # ------------------------------------------
+# # Sidebar filters only
+# # ------------------------------------------
+# with st.sidebar:
+#     st.header("🔧 Filters")
+#     st.caption("Using default dataset: **data/ecommerce_dataset.csv**")
+#     st.caption("Expected columns: " + ", ".join(EXPECTED_COLS))
 
-    if "order_date" in df.columns and pd.api.types.is_datetime64_any_dtype(df["order_date"]):
-        min_d, max_d = df["order_date"].min(), df["order_date"].max()
-        start, end = st.date_input(
-            "Date range",
-            value=(min_d.date(), max_d.date()),
-            min_value=min_d.date(),
-            max_value=max_d.date(),
-        )
-    else:
-        start, end = None, None
+#     if "order_date" in df.columns and pd.api.types.is_datetime64_any_dtype(df["order_date"]):
+#         min_d, max_d = df["order_date"].min(), df["order_date"].max()
+#         start, end = st.date_input(
+#             "Date range",
+#             value=(min_d.date(), max_d.date()),
+#             min_value=min_d.date(),
+#             max_value=max_d.date(),
+#         )
+#     else:
+#         start, end = None, None
 
-    regions = sorted(df["region"].dropna().unique().tolist()) if "region" in df.columns else []
-    cats    = sorted(df["category"].dropna().unique().tolist()) if "category" in df.columns else []
-    pmodes  = sorted(df["payment_method"].dropna().unique().tolist()) if "payment_method" in df.columns else []
+#     regions = sorted(df["region"].dropna().unique().tolist()) if "region" in df.columns else []
+#     cats    = sorted(df["category"].dropna().unique().tolist()) if "category" in df.columns else []
+#     pmodes  = sorted(df["payment_method"].dropna().unique().tolist()) if "payment_method" in df.columns else []
 
-    sel_regions = st.multiselect("Region", regions, default=regions)
-    sel_cats    = st.multiselect("Category", cats, default=cats)
-    sel_pmodes  = st.multiselect("Payment Method", pmodes, default=pmodes)
+#     sel_regions = st.multiselect("Region", regions, default=regions)
+#     sel_cats    = st.multiselect("Category", cats, default=cats)
+#     sel_pmodes  = st.multiselect("Payment Method", pmodes, default=pmodes)
 
-# Apply filters
-mask = pd.Series(True, index=df.index)
-if start and end and "order_date" in df.columns:
-    mask &= (df["order_date"].dt.date >= start) & (df["order_date"].dt.date <= end)
-if sel_regions and "region" in df.columns:
-    mask &= df["region"].isin(sel_regions)
-if sel_cats and "category" in df.columns:
-    mask &= df["category"].isin(sel_cats)
-if sel_pmodes and "payment_method" in df.columns:
-    mask &= df["payment_method"].isin(sel_pmodes)
+# # Apply filters
+# mask = pd.Series(True, index=df.index)
+# if start and end and "order_date" in df.columns:
+#     mask &= (df["order_date"].dt.date >= start) & (df["order_date"].dt.date <= end)
+# if sel_regions and "region" in df.columns:
+#     mask &= df["region"].isin(sel_regions)
+# if sel_cats and "category" in df.columns:
+#     mask &= df["category"].isin(sel_cats)
+# if sel_pmodes and "payment_method" in df.columns:
+#     mask &= df["payment_method"].isin(sel_pmodes)
 
-fdf = df.loc[mask].copy()
-if fdf.empty:
-    st.warning("No data after filters. Adjust filters.")
-    st.stop()
+# fdf = df.loc[mask].copy()
+# if fdf.empty:
+#     st.warning("No data after filters. Adjust filters.")
+#     st.stop()
 
 # ------------------------------------------
 # KPI row
