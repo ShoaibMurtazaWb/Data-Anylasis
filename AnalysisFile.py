@@ -29,7 +29,7 @@ def style_fig(fig, *, height=380, ytitle=None):
         height=height,
         margin=dict(l=20, r=20, t=60, b=40),
         hoverlabel=dict(bgcolor="white"),
-        font=dict(size=14),
+        font=dict(size=14, color='black'),
     )
     if ytitle:
         fig.update_layout(yaxis_title=ytitle)
