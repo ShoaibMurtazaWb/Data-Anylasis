@@ -1,5 +1,6 @@
-import io
+# AnalysisFile.py
 from pathlib import Path
+import io
 import pandas as pd
 import numpy as np
 import streamlit as st
@@ -20,25 +21,11 @@ DATA_PATH = Path(__file__).parent / "data" / "ecommerce_dataset.csv"
 
 @st.cache_data
 def load_default() -> pd.DataFrame:
-    # Always available because it's committed in the repo
     return pd.read_csv(DATA_PATH)
 
-@st.cache_data
-def load_uploaded(file) -> pd.DataFrame:
-    # Support CSV / Excel uploads
-    name = (getattr(file, "name", "") or "").lower()
-    if name.endswith((".xlsx", ".xls")):
-        return pd.read_excel(file)  # needs openpyxl
-    data = file.read()
-    try:
-        return pd.read_csv(io.BytesIO(data))
-    except Exception:
-        file.seek(0)
-        return pd.read_csv(file, encoding_errors="ignore")
-
 def coerce_schema(df: pd.DataFrame) -> pd.DataFrame:
-    """Normalize column names and coerce types."""
-    if df.empty: return df
+    if df.empty: 
+        return df
     df = df.copy()
     df.columns = [c.strip().lower() for c in df.columns]
 
@@ -46,7 +33,7 @@ def coerce_schema(df: pd.DataFrame) -> pd.DataFrame:
     if missing:
         st.warning(f"Missing columns: {missing}. Proceeding with available columns.")
 
-    # Parse date
+    # Parse dates
     if "order_date" in df.columns:
         df["order_date"] = pd.to_datetime(df["order_date"], errors="coerce")
 
@@ -58,16 +45,14 @@ def coerce_schema(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 def add_computed(df: pd.DataFrame) -> pd.DataFrame:
-    """Compute gross/net sales and time breakdowns."""
     out = df.copy()
-
     if {"quantity", "price"}.issubset(out.columns):
         out["gross_sales"] = out["quantity"] * out["price"]
     else:
         out["gross_sales"] = np.nan
 
     if "discount" in out.columns:
-        # discount treated as fraction (0.10 = 10%)
+        # discount is a fraction (0.10 = 10%)
         out["net_sales"] = out["gross_sales"] * (1 - out["discount"].clip(0, 0.99))
     else:
         out["net_sales"] = out["gross_sales"]
@@ -80,34 +65,24 @@ def add_computed(df: pd.DataFrame) -> pd.DataFrame:
         out["date"] = pd.NaT
         out["month"] = pd.NaT
         out["weekday"] = np.nan
-
     return out
 
 # ------------------------------------------
-# Sidebar: default data + optional upload + filters
+# Load default dataset (no uploader)
 # ------------------------------------------
-with st.sidebar:
-    st.header("🔧 Controls")
-    st.caption("App loads a default dataset from **data/ecommerce_dataset.csv**. Upload to override.")
-    uploaded = st.file_uploader("Upload CSV or Excel (optional)", type=["csv", "xlsx", "xls"])
-    st.caption("Expected columns: " + ", ".join(EXPECTED_COLS))
-
-# Load data (uploaded overrides default)
-if uploaded is not None:
-    df = load_uploaded(uploaded)
-    st.success("✅ Using uploaded file")
-else:
-    df = load_default()
-    st.info("ℹ️ Using default dataset: data/ecommerce_dataset.csv")
-
-# Prepare data
+df = load_default()
 df = coerce_schema(df)
 df = add_computed(df)
 df = df.dropna(subset=[c for c in ["net_sales", "gross_sales", "quantity"] if c in df.columns])
 
-# Dynamic filters
+# ------------------------------------------
+# Sidebar filters only
+# ------------------------------------------
 with st.sidebar:
-    # Date range
+    st.header("🔧 Filters")
+    st.caption("Using default dataset: **data/ecommerce_dataset.csv**")
+    st.caption("Expected columns: " + ", ".join(EXPECTED_COLS))
+
     if "order_date" in df.columns and pd.api.types.is_datetime64_any_dtype(df["order_date"]):
         min_d, max_d = df["order_date"].min(), df["order_date"].max()
         start, end = st.date_input(
@@ -120,13 +95,12 @@ with st.sidebar:
         start, end = None, None
 
     regions = sorted(df["region"].dropna().unique().tolist()) if "region" in df.columns else []
+    cats    = sorted(df["category"].dropna().unique().tolist()) if "category" in df.columns else []
+    pmodes  = sorted(df["payment_method"].dropna().unique().tolist()) if "payment_method" in df.columns else []
+
     sel_regions = st.multiselect("Region", regions, default=regions)
-
-    cats = sorted(df["category"].dropna().unique().tolist()) if "category" in df.columns else []
-    sel_cats = st.multiselect("Category", cats, default=cats)
-
-    pmodes = sorted(df["payment_method"].dropna().unique().tolist()) if "payment_method" in df.columns else []
-    sel_pmodes = st.multiselect("Payment Method", pmodes, default=pmodes)
+    sel_cats    = st.multiselect("Category", cats, default=cats)
+    sel_pmodes  = st.multiselect("Payment Method", pmodes, default=pmodes)
 
 # Apply filters
 mask = pd.Series(True, index=df.index)
@@ -148,11 +122,11 @@ if fdf.empty:
 # KPI row
 # ------------------------------------------
 col1, col2, col3, col4 = st.columns(4)
-total_net = fdf["net_sales"].sum()
+total_net   = fdf["net_sales"].sum()
 total_gross = fdf["gross_sales"].sum()
-units = fdf["quantity"].sum()
-orders = fdf["order_id"].nunique() if "order_id" in fdf.columns else len(fdf)
-aov = total_net / orders if orders else 0.0
+units       = fdf["quantity"].sum()
+orders      = fdf["order_id"].nunique() if "order_id" in fdf.columns else len(fdf)
+aov         = total_net / orders if orders else 0.0
 
 col1.metric("Net Sales", f"${total_net:,.0f}")
 col2.metric("Gross Sales", f"${total_gross:,.0f}")
@@ -160,98 +134,75 @@ col3.metric("Units Sold", f"{int(units):,}")
 col4.metric("Avg Order Value (AOV)", f"${aov:,.2f}")
 
 # ------------------------------------------
-# Time series & category performance
+# FULL-WIDTH CHARTS (stacked)
 # ------------------------------------------
-row1_col1, row1_col2 = st.columns((2, 1))
 
-with row1_col1:
-    st.subheader("Net Sales Over Time")
-    if "date" in fdf.columns and fdf["date"].notna().any():
-        ts = fdf.groupby("date", as_index=False)["net_sales"].sum()
-        fig = px.line(ts, x="date", y="net_sales", markers=True, title="Daily Net Sales")
-        fig.update_layout(hovermode="x unified", yaxis_title="Net Sales")
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("No valid dates to plot.")
+# 1) Full-width line chart: Net Sales Over Time
+st.subheader("Net Sales Over Time")
+if "date" in fdf.columns and fdf["date"].notna().any():
+    ts = fdf.groupby("date", as_index=False)["net_sales"].sum()
+    fig = px.line(ts, x="date", y="net_sales", markers=True, title="Daily Net Sales")
+    fig.update_layout(hovermode="x unified", yaxis_title="Net Sales", height=420)
+    st.plotly_chart(fig, use_container_width=True)
+else:
+    st.info("No valid dates to plot.")
 
-with row1_col2:
-    st.subheader("Sales by Category")
-    if "category" in fdf.columns:
-        cat = (
-            fdf.groupby("category", as_index=False)["net_sales"]
-            .sum()
-            .sort_values("net_sales", ascending=False)
-        )
-        fig = px.bar(cat, x="category", y="net_sales", text_auto=True, title="Net Sales by Category")
-        fig.update_layout(yaxis_title="Net Sales")
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("No 'category' column found.")
+# 2) Bar: Sales by Category
+st.subheader("Sales by Category")
+if "category" in fdf.columns:
+    cat = (
+        fdf.groupby("category", as_index=False)["net_sales"]
+        .sum()
+        .sort_values("net_sales", ascending=False)
+    )
+    fig = px.bar(cat, x="category", y="net_sales", text_auto=True, title="Net Sales by Category")
+    fig.update_layout(yaxis_title="Net Sales", height=380)
+    st.plotly_chart(fig, use_container_width=True)
+else:
+    st.info("No 'category' column found.")
 
-# ------------------------------------------
-# Region & payment mix
-# ------------------------------------------
-row2_col1, row2_col2 = st.columns(2)
+# 3) Bar: Sales by Region
+st.subheader("Sales by Region")
+if "region" in fdf.columns:
+    reg = (
+        fdf.groupby("region", as_index=False)["net_sales"]
+        .sum()
+        .sort_values("net_sales", ascending=False)
+    )
+    fig = px.bar(reg, x="region", y="net_sales", text_auto=True, title="Net Sales by Region")
+    fig.update_layout(yaxis_title="Net Sales", height=360)
+    st.plotly_chart(fig, use_container_width=True)
+else:
+    st.info("No 'region' column found.")
 
-with row2_col1:
-    st.subheader("Sales by Region")
-    if "region" in fdf.columns:
-        reg = (
-            fdf.groupby("region", as_index=False)["net_sales"]
-            .sum()
-            .sort_values("net_sales", ascending=False)
-        )
-        fig = px.bar(reg, x="region", y="net_sales", text_auto=True, title="Net Sales by Region")
-        fig.update_layout(yaxis_title="Net Sales")
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("No 'region' column found.")
+# 4) Pie: Payment Method Mix
+st.subheader("Payment Method Mix")
+if "payment_method" in fdf.columns:
+    pm = fdf.groupby("payment_method", as_index=False)["net_sales"].sum()
+    fig = px.pie(pm, values="net_sales", names="payment_method", title="Net Sales by Payment Method", hole=0.35)
+    fig.update_layout(height=360)
+    st.plotly_chart(fig, use_container_width=True)
+else:
+    st.info("No 'payment_method' column found.")
 
-with row2_col2:
-    st.subheader("Payment Method Mix")
-    if "payment_method" in fdf.columns:
-        pm = fdf.groupby("payment_method", as_index=False)["net_sales"].sum()
-        fig = px.pie(pm, values="net_sales", names="payment_method", title="Net Sales by Payment Method", hole=0.35)
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("No 'payment_method' column found.")
-
-# ------------------------------------------
-# Discount vs revenue & top customers
-# ------------------------------------------
-row3_col1, row3_col2 = st.columns(2)
-
-with row3_col1:
-    st.subheader("Discount vs Net Sales (by Category)")
-    needed = {"discount", "net_sales", "category"}
-    if needed.issubset(fdf.columns):
-        agg = (
-            fdf.groupby("category", as_index=False)
-            .agg(avg_discount=("discount", "mean"), net_sales=("net_sales", "sum"))
-        )
-        # Removed trendline='ols' to avoid pulling statsmodels/SciPy on Python 3.13
-        fig = px.scatter(
-            agg, x="avg_discount", y="net_sales",
-            labels={"avg_discount": "Average Discount", "net_sales": "Net Sales"},
-            title="Discount Intensity vs Net Sales"
-        )
-        st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("Need columns: discount, net_sales, category.")
-
-with row3_col2:
-    st.subheader("Top 10 Customers by Net Sales")
-    needed = {"customer_id", "net_sales"}
-    if needed.issubset(fdf.columns):
-        top_cust = (
-            fdf.groupby("customer_id", as_index=False)
-            .agg(net_sales=("net_sales", "sum"), orders=("order_id", "nunique"))
-            .sort_values("net_sales", ascending=False)
-            .head(10)
-        )
-        st.dataframe(top_cust, use_container_width=True, hide_index=True)
-    else:
-        st.info("Need columns: customer_id, net_sales.")
+# 5) Scatter: Discount vs Net Sales (by Category) — NO trendline (keeps Py3.13 wheel-only)
+st.subheader("Discount vs Net Sales (by Category)")
+needed = {"discount", "net_sales", "category"}
+if needed.issubset(fdf.columns):
+    agg = (
+        fdf.groupby("category", as_index=False)
+        .agg(avg_discount=("discount", "mean"),
+             net_sales=("net_sales", "sum"))
+    )
+    fig = px.scatter(
+        agg, x="avg_discount", y="net_sales",
+        labels={"avg_discount": "Average Discount", "net_sales": "Net Sales"},
+        title="Discount Intensity vs Net Sales",
+    )
+    fig.update_layout(height=380)
+    st.plotly_chart(fig, use_container_width=True)
+else:
+    st.info("Need columns: discount, net_sales, category.")
 
 # ------------------------------------------
 # Detail table + download
@@ -268,6 +219,7 @@ st.dataframe(
     fdf[show_cols].sort_values("order_date", na_position="last"),
     use_container_width=True, hide_index=True
 )
+
 csv = fdf[show_cols].to_csv(index=False).encode("utf-8")
 st.download_button("⬇️ Download filtered data (CSV)", data=csv, file_name="filtered_sales.csv", mime="text/csv")
 
