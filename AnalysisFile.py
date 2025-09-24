@@ -185,24 +185,117 @@ if "payment_method" in fdf.columns:
 else:
     st.info("No 'payment_method' column found.")
 
-# 5) Scatter: Discount vs Net Sales (by Category) — NO trendline (keeps Py3.13 wheel-only)
+# # 5) Scatter: Discount vs Net Sales (by Category) — NO trendline (keeps Py3.13 wheel-only)
+# st.subheader("Discount vs Net Sales (by Category)")
+# needed = {"discount", "net_sales", "category"}
+# if needed.issubset(fdf.columns):
+#     agg = (
+#         fdf.groupby("category", as_index=False)
+#         .agg(avg_discount=("discount", "mean"),
+#              net_sales=("net_sales", "sum"))
+#     )
+#     fig = px.scatter(
+#         agg, x="avg_discount", y="net_sales",
+#         labels={"avg_discount": "Average Discount", "net_sales": "Net Sales"},
+#         title="Discount Intensity vs Net Sales",
+#     )
+#     fig.update_layout(height=380)
+#     st.plotly_chart(fig, use_container_width=True)
+# else:
+#     st.info("Need columns: discount, net_sales, category.")
+
+# ------------------------------------------
+# Improved: Discount vs Net Sales (by Category)
+# ------------------------------------------
 st.subheader("Discount vs Net Sales (by Category)")
+
 needed = {"discount", "net_sales", "category"}
 if needed.issubset(fdf.columns):
+
+    # ---- aggregate category KPIs
     agg = (
         fdf.groupby("category", as_index=False)
-        .agg(avg_discount=("discount", "mean"),
-             net_sales=("net_sales", "sum"))
+          .agg(avg_discount=("discount", "mean"),
+               net_sales=("net_sales", "sum"),
+               orders=("order_id", "nunique"),
+               units=("quantity", "sum"))
     )
+    # Guard against zeros/negatives for logs
+    agg = agg.replace([np.inf, -np.inf], np.nan).dropna(subset=["avg_discount", "net_sales"])
+    agg = agg[(agg["avg_discount"] >= 0) & (agg["net_sales"] > 0)]
+
+    # ---- simple linear regression with NumPy (no SciPy)
+    x = agg["avg_discount"].to_numpy()
+    y = agg["net_sales"].to_numpy()
+    # y = a*x + b
+    a, b = np.polyfit(x, y, deg=1)
+    y_hat = a * x + b
+    ss_res = np.sum((y - y_hat) ** 2)
+    ss_tot = np.sum((y - np.mean(y)) ** 2)
+    r2 = 1 - ss_res / ss_tot if ss_tot > 0 else np.nan
+
+    # ---- plot (bubble size = orders)
+    log_scale = st.toggle("Log scale (Y)", value=False, help="Good when categories have very different sales sizes.")
     fig = px.scatter(
         agg, x="avg_discount", y="net_sales",
-        labels={"avg_discount": "Average Discount", "net_sales": "Net Sales"},
-        title="Discount Intensity vs Net Sales",
+        size="orders", color="category",
+        hover_data={"avg_discount":":.2%", "net_sales":":,.0f", "orders":":,",
+                    "units":":," , "category":True},
+        labels={"avg_discount":"Average Discount", "net_sales":"Net Sales"},
     )
-    fig.update_layout(height=380)
+    # tidy marker sizing
+    fig.update_traces(marker=dict(opacity=0.85, line=dict(width=0.5)))
+
+    # ---- regression line (manual trace)
+    xs = np.linspace(float(x.min()), float(x.max()), 100)
+    ys = a * xs + b
+    fig.add_scatter(x=xs, y=ys, mode="lines", name=f"Trend (R²={r2:.2f})")
+
+    # ---- quadrant guides (median split)
+    x_med = float(np.median(x))
+    y_med = float(np.median(y))
+    fig.add_vline(x=x_med, line_dash="dot", opacity=0.35)
+    fig.add_hline(y=y_med, line_dash="dot", opacity=0.35)
+
+    # optional quadrant shading (light tint)
+    fig.add_vrect(x0=x.min(), x1=x_med, fillcolor="LightGreen", opacity=0.05, line_width=0)
+    fig.add_vrect(x0=x_med, x1=x.max(), fillcolor="LightCoral", opacity=0.05, line_width=0)
+    fig.add_hrect(y0=y_med, y1=y.max(), fillcolor="LightSkyBlue", opacity=0.05, line_width=0)
+    # (bottom-left remains unshaded)
+
+    # ---- axes & layout
+    fig.update_layout(
+        title=f"Discount Intensity vs Net Sales — R²={r2:.2f}",
+        yaxis_title="Net Sales",
+        xaxis_tickformat=".0%",
+        height=420,
+        legend_title="Category",
+        hovermode="closest",
+    )
+    if log_scale:
+        fig.update_yaxes(type="log", tickformat="~s")
+
     st.plotly_chart(fig, use_container_width=True)
+
+    # ---- quick takeaway list (top/bottom 3 categories by sales efficiency)
+    # efficiency = sales per discount point (rough proxy)
+    agg["sales_per_discount_point"] = agg["net_sales"] / np.maximum(agg["avg_discount"], 1e-6)
+    top3 = agg.sort_values("sales_per_discount_point", ascending=False).head(3)[["category","sales_per_discount_point"]]
+    bottom3 = agg.sort_values("sales_per_discount_point", ascending=True).head(3)[["category","sales_per_discount_point"]]
+
+    col_a, col_b = st.columns(2)
+    with col_a:
+        st.markdown("**Top efficiency (sales per discount point)**")
+        st.dataframe(top3.assign(sales_per_discount_point=lambda d: d["sales_per_discount_point"].map("{:,.0f}".format)),
+                     hide_index=True, use_container_width=True)
+    with col_b:
+        st.markdown("**Bottom efficiency (needs review)**")
+        st.dataframe(bottom3.assign(sales_per_discount_point=lambda d: d["sales_per_discount_point"].map("{:,.0f}".format)),
+                     hide_index=True, use_container_width=True)
+
 else:
     st.info("Need columns: discount, net_sales, category.")
+
 
 # ------------------------------------------
 # Detail table + download
