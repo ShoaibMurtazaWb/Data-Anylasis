@@ -136,24 +136,20 @@ col4.metric("Avg Order Value (AOV)", f"${aov:,.2f}")
 # ------------------------------------------
 # FULL-WIDTH CHARTS (stacked)
 # ------------------------------------------
-# === Pareto Curve: Cumulative Net Sales by Customer ===
-st.subheader("Pareto: Cumulative Net Sales by Customer")
-if {"customer_id","net_sales"}.issubset(fdf.columns):
-    cust = (fdf.groupby("customer_id", as_index=False)["net_sales"].sum()
-              .sort_values("net_sales", ascending=False))
-    cust["cum_sales"] = cust["net_sales"].cumsum()
-    cust["cum_share"] = cust["cum_sales"] / cust["net_sales"].sum()
-    cust["rank"] = np.arange(1, len(cust)+1)
-    cust["rank_share"] = cust["rank"] / len(cust)
-    fig = px.line(cust, x="rank_share", y="cum_share",
-                  title="Pareto Curve: Customers vs Cumulative Sales")
-    fig.add_hline(y=0.8, line_dash="dot", opacity=0.4)
-    fig.add_vline(x=0.2, line_dash="dot", opacity=0.4)
-    fig.update_layout(xaxis_tickformat=".0%", yaxis_tickformat=".0%", height=360,
-                      xaxis_title="Customer Share", yaxis_title="Sales Share")
+# === Heatmap: Weekday x Category (Net Sales) ===
+st.subheader("Heatmap: Weekday × Category")
+if {"weekday","category","net_sales"}.issubset(fdf.columns):
+    order = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
+    temp = fdf.copy()
+    temp["weekday"] = pd.Categorical(temp["weekday"], categories=order, ordered=True)
+    piv = temp.pivot_table(index="weekday", columns="category", values="net_sales",
+                           aggfunc="sum", fill_value=0)
+    fig = px.imshow(piv, aspect="auto", color_continuous_scale="Blues",
+                    labels=dict(color="Net Sales"), title="Net Sales by Weekday and Category")
+    fig.update_layout(height=420)
     st.plotly_chart(fig, use_container_width=True)
 else:
-    st.info("Need columns: customer_id, net_sales.")
+    st.info("Need columns: weekday, category, net_sales.")
 
 
 # 1) Full-width line chart: Net Sales Over Time
