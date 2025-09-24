@@ -10,6 +10,72 @@ st.set_page_config(page_title="Financial Sales Dashboard", page_icon="📈", lay
 st.title("📈 Financial Sales Dashboard")
 
 # ------------------------------------------
+# Styling:
+# ------------------------------------------
+# === THEME & STYLING ===
+# Plotly theme (consistent across all charts)
+px.defaults.template = "plotly_white"
+px.defaults.width = None  # let Streamlit make them full width
+px.defaults.height = 380
+px.defaults.colorway = ["#2563eb", "#16a34a", "#dc2626", "#9333ea", "#ea580c", "#0891b2", "#f59e0b"]
+
+# Utility to tidy figure layout in one place
+def style_fig(fig, *, height=380, ytitle=None):
+    fig.update_layout(
+        height=height,
+        margin=dict(l=20, r=20, t=60, b=40),
+        hoverlabel=dict(bgcolor="white"),
+        font=dict(size=14),
+    )
+    if ytitle:
+        fig.update_layout(yaxis_title=ytitle)
+    return fig
+
+# Subtle CSS polish for headings, metric cards, sidebar & buttons
+STYLES = """
+<style>
+/* Page width & headings */
+.block-container { padding-top: 1.2rem; padding-bottom: 4rem; }
+h2, h3 { margin-top: 0.75rem; }
+
+/* Section headers */
+.stMarkdown h3 {
+  padding: .35rem .6rem;
+  background: linear-gradient(90deg, rgba(37,99,235,.12), rgba(37,99,235,0));
+  border-left: 3px solid #2563eb;
+  border-radius: 6px;
+}
+
+/* Metric row: give a card feel */
+.stMetric {
+  background: #fff;
+  border: 1px solid rgba(0,0,0,.06);
+  border-radius: 12px;
+  padding: .6rem .8rem;
+  box-shadow: 0 1px 2px rgba(0,0,0,.05);
+}
+
+/* Sidebar */
+section[data-testid="stSidebar"] {
+  background: #f8fafc;
+  border-right: 1px solid #e5e7eb;
+}
+
+/* Download button */
+.stDownloadButton button {
+  border-radius: 10px;
+  padding: .6rem 1rem;
+  border: 1px solid #e5e7eb;
+}
+
+/* Dataframe height */
+div[data-testid="stDataFrame"] { height: 520px; }
+</style>
+"""
+st.markdown(STYLES, unsafe_allow_html=True)
+
+
+# ------------------------------------------
 # Expected schema & helpers
 # ------------------------------------------
 EXPECTED_COLS = [
