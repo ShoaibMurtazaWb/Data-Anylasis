@@ -47,7 +47,7 @@ h2, h3 { margin-top: 0.75rem; }
   border-radius: 6px;
 }
 .stHeading h1{
-    margin-top: 0.75rem;
+    margin-top: 1.2rem;
 }
 .stMetric {
   color: #000000;
