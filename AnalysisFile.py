@@ -136,7 +136,46 @@ col4.metric("Avg Order Value (AOV)", f"${aov:,.2f}")
 # ------------------------------------------
 # FULL-WIDTH CHARTS (stacked)
 # ------------------------------------------
-# === Heatmap: Weekday x Category (Net Sales) ===
+
+# 1) Bar: Sales by Category
+st.subheader("Sales by Category")
+if "category" in fdf.columns:
+    cat = (
+        fdf.groupby("category", as_index=False)["net_sales"]
+        .sum()
+        .sort_values("net_sales", ascending=False)
+    )
+    fig = px.bar(cat, x="category", y="net_sales", text_auto=True, title="Net Sales by Category")
+    fig.update_layout(yaxis_title="Net Sales", height=380)
+    st.plotly_chart(fig, use_container_width=True)
+else:
+    st.info("No 'category' column found.")
+
+# 2) Bar: Sales by Region
+st.subheader("Sales by Region")
+if "region" in fdf.columns:
+    reg = (
+        fdf.groupby("region", as_index=False)["net_sales"]
+        .sum()
+        .sort_values("net_sales", ascending=False)
+    )
+    fig = px.bar(reg, x="region", y="net_sales", text_auto=True, title="Net Sales by Region")
+    fig.update_layout(yaxis_title="Net Sales", height=360)
+    st.plotly_chart(fig, use_container_width=True)
+else:
+    st.info("No 'region' column found.")
+
+# 3) Pie: Payment Method Mix
+st.subheader("Payment Method Mix")
+if "payment_method" in fdf.columns:
+    pm = fdf.groupby("payment_method", as_index=False)["net_sales"].sum()
+    fig = px.pie(pm, values="net_sales", names="payment_method", title="Net Sales by Payment Method", hole=0.35)
+    fig.update_layout(height=460)
+    st.plotly_chart(fig, use_container_width=True)
+else:
+    st.info("No 'payment_method' column found.")
+
+# 3) Heatmap: Weekday x Category (Net Sales) 
 st.subheader("Heatmap: Weekday × Category")
 if {"weekday","category","net_sales"}.issubset(fdf.columns):
     order = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
@@ -152,7 +191,7 @@ else:
     st.info("Need columns: weekday, category, net_sales.")
 
 
-# 1) Full-width line chart: Net Sales Over Time
+# 5) Full-width line chart: Net Sales Over Time
 st.subheader("Net Sales Over Time")
 if "date" in fdf.columns and fdf["date"].notna().any():
     ts = fdf.groupby("date", as_index=False)["net_sales"].sum()
@@ -162,43 +201,6 @@ if "date" in fdf.columns and fdf["date"].notna().any():
 else:
     st.info("No valid dates to plot.")
 
-# 2) Bar: Sales by Category
-st.subheader("Sales by Category")
-if "category" in fdf.columns:
-    cat = (
-        fdf.groupby("category", as_index=False)["net_sales"]
-        .sum()
-        .sort_values("net_sales", ascending=False)
-    )
-    fig = px.bar(cat, x="category", y="net_sales", text_auto=True, title="Net Sales by Category")
-    fig.update_layout(yaxis_title="Net Sales", height=380)
-    st.plotly_chart(fig, use_container_width=True)
-else:
-    st.info("No 'category' column found.")
-
-# 3) Bar: Sales by Region
-st.subheader("Sales by Region")
-if "region" in fdf.columns:
-    reg = (
-        fdf.groupby("region", as_index=False)["net_sales"]
-        .sum()
-        .sort_values("net_sales", ascending=False)
-    )
-    fig = px.bar(reg, x="region", y="net_sales", text_auto=True, title="Net Sales by Region")
-    fig.update_layout(yaxis_title="Net Sales", height=360)
-    st.plotly_chart(fig, use_container_width=True)
-else:
-    st.info("No 'region' column found.")
-
-# 4) Pie: Payment Method Mix
-st.subheader("Payment Method Mix")
-if "payment_method" in fdf.columns:
-    pm = fdf.groupby("payment_method", as_index=False)["net_sales"].sum()
-    fig = px.pie(pm, values="net_sales", names="payment_method", title="Net Sales by Payment Method", hole=0.35)
-    fig.update_layout(height=460)
-    st.plotly_chart(fig, use_container_width=True)
-else:
-    st.info("No 'payment_method' column found.")
 
 # # 5) Scatter: Discount vs Net Sales (by Category) — NO trendline (keeps Py3.13 wheel-only)
 # st.subheader("Discount vs Net Sales (by Category)")
@@ -220,7 +222,7 @@ else:
 #     st.info("Need columns: discount, net_sales, category.")
 
 # ------------------------------------------
-# Improved: Discount vs Net Sales (by Category)
+# 6) Improved: Discount vs Net Sales (by Category)
 # ------------------------------------------
 st.subheader("Discount vs Net Sales (by Category)")
 
