@@ -154,18 +154,6 @@ else:
 
 
 
-# === Units Sold Over Time (full width) ===
-st.subheader("Units Sold Over Time")
-if "date" in fdf.columns and fdf["date"].notna().any():
-    uts = fdf.groupby("date", as_index=False)["quantity"].sum()
-    fig = px.area(uts, x="date", y="quantity", title="Daily Units Sold")
-    fig.update_layout(hovermode="x unified", yaxis_title="Units", height=360)
-    st.plotly_chart(fig, use_container_width=True)
-else:
-    st.info("No valid dates to plot for units.")
-
-
-
 
 # 1) Bar: Sales by Category
 st.subheader("Sales by Category")
@@ -231,6 +219,17 @@ if "date" in fdf.columns and fdf["date"].notna().any():
 else:
     st.info("No valid dates to plot.")
 
+
+
+# === Units Sold Over Time (full width) ===
+st.subheader("Units Sold Over Time")
+if "date" in fdf.columns and fdf["date"].notna().any():
+    uts = fdf.groupby("date", as_index=False)["quantity"].sum()
+    fig = px.area(uts, x="date", y="quantity", title="Daily Units Sold")
+    fig.update_layout(hovermode="x unified", yaxis_title="Units", height=360)
+    st.plotly_chart(fig, use_container_width=True)
+else:
+    st.info("No valid dates to plot for units.")
 
 # # 5) Scatter: Discount vs Net Sales (by Category) — NO trendline (keeps Py3.13 wheel-only)
 # st.subheader("Discount vs Net Sales (by Category)")
