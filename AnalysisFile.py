@@ -46,6 +46,9 @@ h2, h3 { margin-top: 0.75rem; }
   border-left: 3px solid #2563eb;
   border-radius: 6px;
 }
+.stHeading h1{
+    margin-top: 0.75rem;
+}
 .stMetric {
   color: #000000;
   background: #fff; border: 1px solid rgba(0,0,0,.06); border-radius: 12px;
