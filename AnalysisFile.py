@@ -47,6 +47,7 @@ h2, h3 { margin-top: 0.75rem; }
   border-radius: 6px;
 }
 .stMetric {
+  color: #000000;
   background: #fff; border: 1px solid rgba(0,0,0,.06); border-radius: 12px;
   padding: .6rem .8rem; box-shadow: 0 1px 2px rgba(0,0,0,.05);
 }
