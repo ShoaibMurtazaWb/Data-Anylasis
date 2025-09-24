@@ -180,7 +180,7 @@ st.subheader("Payment Method Mix")
 if "payment_method" in fdf.columns:
     pm = fdf.groupby("payment_method", as_index=False)["net_sales"].sum()
     fig = px.pie(pm, values="net_sales", names="payment_method", title="Net Sales by Payment Method", hole=0.35)
-    fig.update_layout(height=360)
+    fig.update_layout(height=460)
     st.plotly_chart(fig, use_container_width=True)
 else:
     st.info("No 'payment_method' column found.")
