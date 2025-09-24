@@ -137,24 +137,6 @@ col4.metric("Avg Order Value (AOV)", f"${aov:,.2f}")
 # FULL-WIDTH CHARTS (stacked)
 # ------------------------------------------
 
-
-# === AOV by Category (bar) ===
-st.subheader("Average Order Value (AOV) by Category")
-if {"category","order_id","net_sales"}.issubset(fdf.columns):
-    aov_cat = (fdf.groupby(["category","order_id"], as_index=False)["net_sales"].sum()
-                 .groupby("category", as_index=False)["net_sales"].mean()
-                 .rename(columns={"net_sales":"AOV"}))
-    aov_cat = aov_cat.sort_values("AOV", ascending=False)
-    fig = px.bar(aov_cat, x="category", y="AOV", text_auto=".2s",
-                 title="AOV by Category")
-    fig.update_layout(yaxis_title="AOV", height=360)
-    st.plotly_chart(fig, use_container_width=True)
-else:
-    st.info("Need columns: category, order_id, net_sales.")
-
-
-
-
 # 1) Bar: Sales by Category
 st.subheader("Sales by Category")
 if "category" in fdf.columns:
