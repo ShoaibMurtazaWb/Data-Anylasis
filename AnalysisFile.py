@@ -54,7 +54,7 @@ h2, h3 { margin-top: 0.75rem; }
 .st-emotion-cache-q49buc,.st-emotion-cache-efbu8t{color: #000000}
 section[data-testid="stSidebar"] { background: #f8fafc; border-right: 1px solid #e5e7eb; }
 .stDownloadButton button { border-radius: 10px; padding: .6rem 1rem; border: 1px solid #e5e7eb; }
-div[data-testid="stDataFrame"] { height: 320px; }
+div[data-testid="stDataFrame"] { height: 250px; }
 </style>
 """
 st.markdown(STYLES, unsafe_allow_html=True)
