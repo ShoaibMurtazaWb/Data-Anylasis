@@ -1,4 +1,4 @@
-# AnalysisFile.py (Short and Simple)
+# AnalysisFile.py (Short and Simple Final Version)
 from pathlib import Path
 import pandas as pd
 import numpy as np
@@ -17,7 +17,7 @@ def style_fig(fig, height=380, ytitle=None):
     if ytitle: fig.update_layout(yaxis_title=ytitle)
     return fig
 
-# Simple CSS (kept simple for brevity)
+# Simple CSS
 st.markdown("""
 <style>
 h3 { padding: .35rem .6rem; background: rgba(37,99,235,.12); border-left: 3px solid #2563eb; border-radius: 6px; }
@@ -37,11 +37,9 @@ def load_and_prepare_data():
     if "order_date" in df.columns:
         df["order_date"] = pd.to_datetime(df["order_date"], errors="coerce")
 
-    # Coerce numerics
     for c in ("quantity", "price", "discount"):
         if c in df.columns: df[c] = pd.to_numeric(df[c], errors="coerce")
 
-    # Computed columns
     if {"quantity", "price"}.issubset(df.columns):
         df["gross_sales"] = df["quantity"] * df["price"]
         df["net_sales"] = df["gross_sales"] * (1 - df.get("discount", 0).clip(0, 0.99))
@@ -72,7 +70,7 @@ with st.sidebar:
             options = sorted(df[col].dropna().unique().tolist())
             sel_filters[col] = st.multiselect(col.title(), options, default=options)
 
-# Apply filters (simplified sequential application)
+# Apply filters
 fdf = df.copy()
 if start and end and "order_date" in fdf.columns: 
     fdf = fdf[(fdf["order_date"].dt.date >= start) & (fdf["order_date"].dt.date <= end)]
@@ -90,21 +88,27 @@ c2.metric("Gross Sales", f"${fdf['gross_sales'].sum():,.0f}")
 c3.metric("Units Sold", f"{int(fdf['quantity'].sum()):,}")
 c4.metric("Avg Order Value (AOV)", f"${total_net / orders:,.2f}" if orders else "$0.00")
 
-# --- Chart Helper (Generic) ---
+# --- Chart Helper (Generic, Title Removed) ---
 def plot_sales_chart(df, col, chart_type="bar", y_col="net_sales", height=380):
     st.subheader(f"{y_col.replace('_', ' ').title()} by {col.title()}")
     if col in df.columns:
-        agg = df.groupby(col, as_index=False)[y_col].sum().sort_values(y_col, ascending=False)
         
+        # Aggregation logic: required for time series and breakdowns
+        if chart_type in ["line", "area"]:
+            agg = df.groupby(col, as_index=False)[y_col].sum()
+        else:
+            agg = df.groupby(col, as_index=False)[y_col].sum().sort_values(y_col, ascending=False)
+        
+        # Plotting
         if chart_type == "bar":
-            fig = px.bar(agg, x=col, y=y_col, text_auto=True, title=f"{y_col.title()} by {col.title()}")
+            fig = px.bar(agg, x=col, y=y_col, text_auto=True, title=None)
         elif chart_type == "pie":
-            fig = px.pie(agg, values=y_col, names=col, title=f"{y_col.title()} by {col.title()}", hole=0.35)
+            fig = px.pie(agg, values=y_col, names=col, title=None, hole=0.35)
         elif chart_type == "line":
-            fig = px.line(agg, x=col, y=y_col, markers=True, title=f"{y_col.title()} Over Time")
+            fig = px.line(agg, x=col, y=y_col, markers=True, title=None)
             fig.update_layout(hovermode="x unified")
         elif chart_type == "area":
-            fig = px.area(agg, x=col, y=y_col, title=f"{y_col.title()} Over Time")
+            fig = px.area(agg, x=col, y=y_col, title=None)
             fig.update_layout(hovermode="x unified")
 
         st.plotly_chart(style_fig(fig, height=height, ytitle=y_col.replace('_', ' ').title()), use_container_width=True)
@@ -121,11 +125,11 @@ if {"weekday","category","net_sales"}.issubset(fdf.columns):
     order = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
     piv = fdf.pivot_table(index="weekday", columns="category", values="net_sales", aggfunc="sum", fill_value=0)
     piv = piv.reindex(order, fill_value=0) # Re-index for correct order
-    fig = px.imshow(piv, aspect="auto", color_continuous_scale="Blues", labels=dict(color="Net Sales"), title="Net Sales by Weekday and Category")
+    fig = px.imshow(piv, aspect="auto", color_continuous_scale="Blues", labels=dict(color="Net Sales"), title=None)
     st.plotly_chart(style_fig(fig, height=420), use_container_width=True)
 else: st.info("Need columns: weekday, category, net_sales.")
 
-# Time Series
+# Time Series (using the common helper)
 plot_sales_chart(fdf, "date", chart_type="line", height=420, y_col="net_sales")
 plot_sales_chart(fdf, "date", chart_type="area", height=360, y_col="quantity")
 
@@ -134,10 +138,7 @@ st.subheader("Discount vs Net Sales (by Category)")
 needed = {"discount", "net_sales", "category", "order_id", "quantity"}
 if needed.issubset(fdf.columns):
     agg = fdf.groupby("category", as_index=False).agg(
-        avg_discount=("discount", "mean"), 
-        net_sales=("net_sales", "sum"), 
-        orders=("order_id", "nunique"), 
-        units=("quantity", "sum")
+        avg_discount=("discount", "mean"), net_sales=("net_sales", "sum"), orders=("order_id", "nunique"), units=("quantity", "sum")
     ).dropna(subset=["avg_discount", "net_sales"])
     agg = agg[(agg["avg_discount"] >= 0) & (agg["net_sales"] > 0)]
 
@@ -149,7 +150,7 @@ if needed.issubset(fdf.columns):
         log_scale = st.toggle("Log scale (Y)", value=False, help="Use for large sales differences.")
         
         fig = px.scatter(agg, x="avg_discount", y="net_sales", size="orders", color="category",
-            hover_data={"avg_discount":":.2%", "net_sales":":,.0f", "orders":":,", "units":":," , "category":True})
+            hover_data={"avg_discount":":.2%", "net_sales":":,.0f", "orders":":,", "units":":," , "category":True}, title=None)
         
         # Trendline and quadrants
         xs = np.linspace(x.min(), x.max(), 100)
@@ -157,7 +158,7 @@ if needed.issubset(fdf.columns):
         x_med, y_med = np.median(x), np.median(y)
         fig.add_vline(x=x_med, line_dash="dot", opacity=0.35); fig.add_hline(y=y_med, line_dash="dot", opacity=0.35)
         
-        fig.update_layout(title=f"Discount vs Net Sales — R²={r2:.2f}", yaxis_title="Net Sales", xaxis_tickformat=".0%", height=420)
+        fig.update_layout(title=None, yaxis_title="Net Sales", xaxis_tickformat=".0%", height=420)
         if log_scale: fig.update_yaxes(type="log", tickformat="~s")
         st.plotly_chart(fig, use_container_width=True)
 
