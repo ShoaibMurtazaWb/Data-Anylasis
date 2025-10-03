@@ -1,23 +1,14 @@
-# AnalysisFile.py
+# AnalysisFile.py (Simplified)
 from pathlib import Path
-import io
 import pandas as pd
 import numpy as np
 import streamlit as st
 import plotly.express as px
 
+# --- Configuration & Styling ---
 st.set_page_config(page_title="Financial Sales Dashboard", page_icon="📈", layout="wide")
 st.title("📈 Financial Sales Dashboard")
 
-# ------------------------------------------
-# Styling:
-# ------------------------------------------
-# === THEME & STYLING ===
-# Plotly theme (consistent across all charts)
-# === THEME & STYLING (fixed) ===
-import plotly.express as px
-
-# Global template + discrete colors for categorical series
 px.defaults.template = "plotly_white"
 px.defaults.color_discrete_sequence = [
     "#2563eb", "#16a34a", "#dc2626", "#9333ea", "#ea580c", "#0891b2", "#f59e0b"
@@ -35,7 +26,7 @@ def style_fig(fig, *, height=380, ytitle=None):
         fig.update_layout(yaxis_title=ytitle)
     return fig
 
-# Subtle CSS polish
+# Subtle CSS polish (Simplified)
 STYLES = """
 <style>
 .block-container { padding-top: 1.2rem; padding-bottom: 4rem; }
@@ -45,9 +36,6 @@ h2, h3 { margin-top: 0.75rem; }
   background: linear-gradient(90deg, rgba(37,99,235,.12), rgba(37,99,235,0));
   border-left: 3px solid #2563eb;
   border-radius: 6px;
-}
-.stHeading h1{
-    margin-top: 1.2rem;
 }
 .stMetric {
   color: #000000;
@@ -62,15 +50,11 @@ div[data-testid="stDataFrame"] { height: max-content; }
 """
 st.markdown(STYLES, unsafe_allow_html=True)
 
-
-# ------------------------------------------
-# Expected schema & helpers
-# ------------------------------------------
+# --- Data Loading & Coercion (Kept mostly as is for correctness) ---
 EXPECTED_COLS = [
     "order_id", "customer_id", "product_id", "category", "quantity",
     "price", "discount", "order_date", "region", "payment_method"
 ]
-
 DATA_PATH = Path(__file__).parent / "data" / "ecommerce_dataset.csv"
 
 @st.cache_data
@@ -78,65 +62,46 @@ def load_default() -> pd.DataFrame:
     return pd.read_csv(DATA_PATH)
 
 def coerce_schema(df: pd.DataFrame) -> pd.DataFrame:
-    if df.empty: 
-        return df
     df = df.copy()
     df.columns = [c.strip().lower() for c in df.columns]
-
-    missing = [c for c in EXPECTED_COLS if c not in df.columns]
-    if missing:
-        st.warning(f"Missing columns: {missing}. Proceeding with available columns.")
-
-    # Parse dates
+    
+    # Missing column check omitted for brevity in simplified version,
+    # assuming default data is clean or uploader is not used.
+    
     if "order_date" in df.columns:
         df["order_date"] = pd.to_datetime(df["order_date"], errors="coerce")
-
-    # Numerics
     for c in ("quantity", "price", "discount"):
         if c in df.columns:
             df[c] = pd.to_numeric(df[c], errors="coerce")
-
     return df
 
 def add_computed(df: pd.DataFrame) -> pd.DataFrame:
     out = df.copy()
     if {"quantity", "price"}.issubset(out.columns):
         out["gross_sales"] = out["quantity"] * out["price"]
+        out["net_sales"] = out["gross_sales"] * (1 - out.get("discount", 0).clip(0, 0.99))
     else:
-        out["gross_sales"] = np.nan
-
-    if "discount" in out.columns:
-        # discount is a fraction (0.10 = 10%)
-        out["net_sales"] = out["gross_sales"] * (1 - out["discount"].clip(0, 0.99))
-    else:
-        out["net_sales"] = out["gross_sales"]
+        out["gross_sales"], out["net_sales"] = np.nan, np.nan
 
     if "order_date" in out.columns and pd.api.types.is_datetime64_any_dtype(out["order_date"]):
         out["date"] = out["order_date"].dt.date
         out["month"] = out["order_date"].dt.to_period("M").dt.to_timestamp()
         out["weekday"] = out["order_date"].dt.day_name()
-    else:
-        out["date"] = pd.NaT
-        out["month"] = pd.NaT
-        out["weekday"] = np.nan
     return out
 
-# ------------------------------------------
-# Load default dataset (no uploader)
-# ------------------------------------------
+# --- Load and Prepare Data ---
 df = load_default()
 df = coerce_schema(df)
 df = add_computed(df)
-df = df.dropna(subset=[c for c in ["net_sales", "gross_sales", "quantity"] if c in df.columns])
+valid_sales_cols = [c for c in ["net_sales", "gross_sales", "quantity"] if c in df.columns]
+df = df.dropna(subset=valid_sales_cols)
 
-# ------------------------------------------
-# Sidebar filters only
-# ------------------------------------------
+# --- Sidebar Filters ---
 with st.sidebar:
     st.header("🔧 Filters")
     st.caption("Using default dataset: **data/ecommerce_dataset.csv**")
-    st.caption("Expected columns: " + ", ".join(EXPECTED_COLS))
-
+    
+    start, end = None, None
     if "order_date" in df.columns and pd.api.types.is_datetime64_any_dtype(df["order_date"]):
         min_d, max_d = df["order_date"].min(), df["order_date"].max()
         start, end = st.date_input(
@@ -145,156 +110,106 @@ with st.sidebar:
             min_value=min_d.date(),
             max_value=max_d.date(),
         )
-    else:
-        start, end = None, None
 
-    regions = sorted(df["region"].dropna().unique().tolist()) if "region" in df.columns else []
-    cats    = sorted(df["category"].dropna().unique().tolist()) if "category" in df.columns else []
-    pmodes  = sorted(df["payment_method"].dropna().unique().tolist()) if "payment_method" in df.columns else []
-
-    sel_regions = st.multiselect("Region", regions, default=regions)
-    sel_cats    = st.multiselect("Category", cats, default=cats)
-    sel_pmodes  = st.multiselect("Payment Method", pmodes, default=pmodes)
+    # Use dict comprehension for cleaner filter setup
+    filter_cols = {"region": "Region", "category": "Category", "payment_method": "Payment Method"}
+    sel_filters = {}
+    for col, label in filter_cols.items():
+        if col in df.columns:
+            options = sorted(df[col].dropna().unique().tolist())
+            sel_filters[col] = st.multiselect(label, options, default=options)
+        else:
+            sel_filters[col] = None
 
 # Apply filters
-mask = pd.Series(True, index=df.index)
-if start and end and "order_date" in df.columns:
-    mask &= (df["order_date"].dt.date >= start) & (df["order_date"].dt.date <= end)
-if sel_regions and "region" in df.columns:
-    mask &= df["region"].isin(sel_regions)
-if sel_cats and "category" in df.columns:
-    mask &= df["category"].isin(sel_cats)
-if sel_pmodes and "payment_method" in df.columns:
-    mask &= df["payment_method"].isin(sel_pmodes)
+fdf = df.copy()
+if start and end and "order_date" in fdf.columns:
+    fdf = fdf[(fdf["order_date"].dt.date >= start) & (fdf["order_date"].dt.date <= end)]
+for col, selections in sel_filters.items():
+    if selections and col in fdf.columns:
+        fdf = fdf[fdf[col].isin(selections)]
 
-fdf = df.loc[mask].copy()
 if fdf.empty:
     st.warning("No data after filters. Adjust filters.")
     st.stop()
 
-# ------------------------------------------
-# KPI row
-# ------------------------------------------
-col1, col2, col3, col4 = st.columns(4)
+# --- KPI Row ---
 total_net   = fdf["net_sales"].sum()
 total_gross = fdf["gross_sales"].sum()
 units       = fdf["quantity"].sum()
 orders      = fdf["order_id"].nunique() if "order_id" in fdf.columns else len(fdf)
 aov         = total_net / orders if orders else 0.0
 
+col1, col2, col3, col4 = st.columns(4)
 col1.metric("Net Sales", f"${total_net:,.0f}")
 col2.metric("Gross Sales", f"${total_gross:,.0f}")
 col3.metric("Units Sold", f"{int(units):,}")
 col4.metric("Avg Order Value (AOV)", f"${aov:,.2f}")
 
-# ------------------------------------------
-# FULL-WIDTH CHARTS (stacked)
-# ------------------------------------------
+# --- Chart Generation Helper ---
+def plot_sales_breakdown(df, col, chart_type="bar", title_suffix=""):
+    st.subheader(f"Sales by {col.replace('_', ' ').title()}{title_suffix}")
+    if col in df.columns:
+        agg = (
+            df.groupby(col, as_index=False)["net_sales"]
+            .sum()
+            .sort_values("net_sales", ascending=False)
+        )
+        if chart_type == "bar":
+            fig = px.bar(agg, x=col, y="net_sales", text_auto=True, 
+                         title=f"Net Sales by {col.title()}")
+            fig = style_fig(fig, height=380, ytitle="Net Sales")
+        elif chart_type == "pie":
+            fig = px.pie(agg, values="net_sales", names=col, 
+                         title=f"Net Sales by {col.title()}", hole=0.35)
+            fig = style_fig(fig, height=460)
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info(f"No '{col}' column found.")
 
-# 1) Bar: Sales by Category
-st.subheader("Sales by Category")
-if "category" in fdf.columns:
-    cat = (
-        fdf.groupby("category", as_index=False)["net_sales"]
-        .sum()
-        .sort_values("net_sales", ascending=False)
-    )
-    fig = px.bar(cat, x="category", y="net_sales", text_auto=True, title="Net Sales by Category")
-    fig.update_layout(yaxis_title="Net Sales", height=380)
-    st.plotly_chart(fig, use_container_width=True)
-else:
-    st.info("No 'category' column found.")
+# --- Full-Width Charts ---
+plot_sales_breakdown(fdf, "category")
+plot_sales_breakdown(fdf, "region")
+plot_sales_breakdown(fdf, "payment_method", chart_type="pie", title_suffix=" Mix")
 
-# 2) Bar: Sales by Region
-st.subheader("Sales by Region")
-if "region" in fdf.columns:
-    reg = (
-        fdf.groupby("region", as_index=False)["net_sales"]
-        .sum()
-        .sort_values("net_sales", ascending=False)
-    )
-    fig = px.bar(reg, x="region", y="net_sales", text_auto=True, title="Net Sales by Region")
-    fig.update_layout(yaxis_title="Net Sales", height=360)
-    st.plotly_chart(fig, use_container_width=True)
-else:
-    st.info("No 'region' column found.")
-
-# 3) Pie: Payment Method Mix
-st.subheader("Payment Method Mix")
-if "payment_method" in fdf.columns:
-    pm = fdf.groupby("payment_method", as_index=False)["net_sales"].sum()
-    fig = px.pie(pm, values="net_sales", names="payment_method", title="Net Sales by Payment Method", hole=0.35)
-    fig.update_layout(height=460)
-    st.plotly_chart(fig, use_container_width=True)
-else:
-    st.info("No 'payment_method' column found.")
-
-# 3) Heatmap: Weekday x Category (Net Sales) 
+# --- Heatmap: Weekday x Category ---
 st.subheader("Heatmap: Weekday × Category")
-if {"weekday","category","net_sales"}.issubset(fdf.columns):
+needed = {"weekday","category","net_sales"}
+if needed.issubset(fdf.columns):
     order = ["Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"]
-    temp = fdf.copy()
-    temp["weekday"] = pd.Categorical(temp["weekday"], categories=order, ordered=True)
+    temp = fdf.assign(weekday=lambda d: pd.Categorical(d["weekday"], categories=order, ordered=True))
     piv = temp.pivot_table(index="weekday", columns="category", values="net_sales",
                            aggfunc="sum", fill_value=0)
     fig = px.imshow(piv, aspect="auto", color_continuous_scale="Blues",
                     labels=dict(color="Net Sales"), title="Net Sales by Weekday and Category")
-    fig.update_layout(height=420)
+    fig = style_fig(fig, height=420)
     st.plotly_chart(fig, use_container_width=True)
 else:
-    st.info("Need columns: weekday, category, net_sales.")
+    st.info(f"Need columns: {', '.join(needed)}.")
 
+# --- Time Series Charts ---
+def plot_time_series(df, y_col, title):
+    st.subheader(title)
+    if "date" in df.columns and df["date"].notna().any():
+        ts = df.groupby("date", as_index=False)[y_col].sum()
+        if y_col == "net_sales":
+            fig = px.line(ts, x="date", y=y_col, markers=True, title=title)
+            fig = style_fig(fig, height=420, ytitle="Net Sales")
+        else: # quantity
+            fig = px.area(ts, x="date", y=y_col, title=title)
+            fig = style_fig(fig, height=360, ytitle="Units")
+        fig.update_layout(hovermode="x unified")
+        st.plotly_chart(fig, use_container_width=True)
+    else:
+        st.info(f"No valid dates to plot for {y_col}.")
 
-# 5) Full-width line chart: Net Sales Over Time
-st.subheader("Net Sales Over Time")
-if "date" in fdf.columns and fdf["date"].notna().any():
-    ts = fdf.groupby("date", as_index=False)["net_sales"].sum()
-    fig = px.line(ts, x="date", y="net_sales", markers=True, title="Daily Net Sales")
-    fig.update_layout(hovermode="x unified", yaxis_title="Net Sales", height=420)
-    st.plotly_chart(fig, use_container_width=True)
-else:
-    st.info("No valid dates to plot.")
+plot_time_series(fdf, "net_sales", "Net Sales Over Time")
+plot_time_series(fdf, "quantity", "Units Sold Over Time")
 
-
-
-# === Units Sold Over Time (full width) ===
-st.subheader("Units Sold Over Time")
-if "date" in fdf.columns and fdf["date"].notna().any():
-    uts = fdf.groupby("date", as_index=False)["quantity"].sum()
-    fig = px.area(uts, x="date", y="quantity", title="Daily Units Sold")
-    fig.update_layout(hovermode="x unified", yaxis_title="Units", height=360)
-    st.plotly_chart(fig, use_container_width=True)
-else:
-    st.info("No valid dates to plot for units.")
-
-# # 5) Scatter: Discount vs Net Sales (by Category) — NO trendline (keeps Py3.13 wheel-only)
-# st.subheader("Discount vs Net Sales (by Category)")
-# needed = {"discount", "net_sales", "category"}
-# if needed.issubset(fdf.columns):
-#     agg = (
-#         fdf.groupby("category", as_index=False)
-#         .agg(avg_discount=("discount", "mean"),
-#              net_sales=("net_sales", "sum"))
-#     )
-#     fig = px.scatter(
-#         agg, x="avg_discount", y="net_sales",
-#         labels={"avg_discount": "Average Discount", "net_sales": "Net Sales"},
-#         title="Discount Intensity vs Net Sales",
-#     )
-#     fig.update_layout(height=380)
-#     st.plotly_chart(fig, use_container_width=True)
-# else:
-#     st.info("Need columns: discount, net_sales, category.")
-
-# ------------------------------------------
-# 6) Improved: Discount vs Net Sales (by Category)
-# ------------------------------------------
+# --- Discount vs Net Sales (Bubble Scatter) ---
 st.subheader("Discount vs Net Sales (by Category)")
-
-needed = {"discount", "net_sales", "category"}
+needed = {"discount", "net_sales", "category", "order_id", "quantity"}
 if needed.issubset(fdf.columns):
-
-    # ---- aggregate category KPIs
     agg = (
         fdf.groupby("category", as_index=False)
           .agg(avg_discount=("discount", "mean"),
@@ -302,86 +217,69 @@ if needed.issubset(fdf.columns):
                orders=("order_id", "nunique"),
                units=("quantity", "sum"))
     )
-    # Guard against zeros/negatives for logs
-    agg = agg.replace([np.inf, -np.inf], np.nan).dropna(subset=["avg_discount", "net_sales"])
+    agg = agg.dropna(subset=["avg_discount", "net_sales"])
     agg = agg[(agg["avg_discount"] >= 0) & (agg["net_sales"] > 0)]
 
-    # ---- simple linear regression with NumPy (no SciPy)
-    x = agg["avg_discount"].to_numpy()
-    y = agg["net_sales"].to_numpy()
-    # y = a*x + b
-    a, b = np.polyfit(x, y, deg=1)
-    y_hat = a * x + b
-    ss_res = np.sum((y - y_hat) ** 2)
-    ss_tot = np.sum((y - np.mean(y)) ** 2)
-    r2 = 1 - ss_res / ss_tot if ss_tot > 0 else np.nan
+    if not agg.empty:
+        # Regression
+        x, y = agg["avg_discount"].to_numpy(), agg["net_sales"].to_numpy()
+        a, b = np.polyfit(x, y, deg=1)
+        r2 = 1 - np.sum((y - (a * x + b)) ** 2) / np.sum((y - np.mean(y)) ** 2)
 
-    # ---- plot (bubble size = orders)
-    log_scale = st.toggle("Log scale (Y)", value=False, help="Good when categories have very different sales sizes.")
-    fig = px.scatter(
-        agg, x="avg_discount", y="net_sales",
-        size="orders", color="category",
-        hover_data={"avg_discount":":.2%", "net_sales":":,.0f", "orders":":,",
-                    "units":":," , "category":True},
-        labels={"avg_discount":"Average Discount", "net_sales":"Net Sales"},
-    )
-    # tidy marker sizing
-    fig.update_traces(marker=dict(opacity=0.85, line=dict(width=0.5)))
+        log_scale = st.toggle("Log scale (Y)", value=False, help="Good when categories have very different sales sizes.")
+        
+        # Plot
+        fig = px.scatter(
+            agg, x="avg_discount", y="net_sales", size="orders", color="category",
+            hover_data={"avg_discount":":.2%", "net_sales":":,.0f", "orders":":,", "units":":," , "category":True},
+            labels={"avg_discount":"Average Discount", "net_sales":"Net Sales"},
+        )
+        fig.update_traces(marker=dict(opacity=0.85, line=dict(width=0.5)))
 
-    # ---- regression line (manual trace)
-    xs = np.linspace(float(x.min()), float(x.max()), 100)
-    ys = a * xs + b
-    fig.add_scatter(x=xs, y=ys, mode="lines", name=f"Trend (R²={r2:.2f})")
+        # Regression line, Quadrant guides, Quadrant shading
+        xs = np.linspace(float(x.min()), float(x.max()), 100)
+        fig.add_scatter(x=xs, y=a * xs + b, mode="lines", name=f"Trend (R²={r2:.2f})")
+        x_med, y_med = float(np.median(x)), float(np.median(y))
+        fig.add_vline(x=x_med, line_dash="dot", opacity=0.35)
+        fig.add_hline(y=y_med, line_dash="dot", opacity=0.35)
+        fig.add_vrect(x0=x.min(), x1=x_med, fillcolor="LightGreen", opacity=0.05, line_width=0)
+        fig.add_vrect(x0=x_med, x1=x.max(), fillcolor="LightCoral", opacity=0.05, line_width=0)
+        fig.add_hrect(y0=y_med, y1=y.max(), fillcolor="LightSkyBlue", opacity=0.05, line_width=0)
 
-    # ---- quadrant guides (median split)
-    x_med = float(np.median(x))
-    y_med = float(np.median(y))
-    fig.add_vline(x=x_med, line_dash="dot", opacity=0.35)
-    fig.add_hline(y=y_med, line_dash="dot", opacity=0.35)
+        fig.update_layout(
+            title=f"Discount Intensity vs Net Sales — R²={r2:.2f}",
+            yaxis_title="Net Sales",
+            xaxis_tickformat=".0%",
+            height=420,
+            legend_title="Category",
+            hovermode="closest",
+        )
+        if log_scale:
+            fig.update_yaxes(type="log", tickformat="~s")
 
-    # optional quadrant shading (light tint)
-    fig.add_vrect(x0=x.min(), x1=x_med, fillcolor="LightGreen", opacity=0.05, line_width=0)
-    fig.add_vrect(x0=x_med, x1=x.max(), fillcolor="LightCoral", opacity=0.05, line_width=0)
-    fig.add_hrect(y0=y_med, y1=y.max(), fillcolor="LightSkyBlue", opacity=0.05, line_width=0)
-    # (bottom-left remains unshaded)
+        st.plotly_chart(fig, use_container_width=True)
 
-    # ---- axes & layout
-    fig.update_layout(
-        title=f"Discount Intensity vs Net Sales — R²={r2:.2f}",
-        yaxis_title="Net Sales",
-        xaxis_tickformat=".0%",
-        height=420,
-        legend_title="Category",
-        hovermode="closest",
-    )
-    if log_scale:
-        fig.update_yaxes(type="log", tickformat="~s")
+        # Takeaways
+        agg["sales_per_discount_point"] = agg["net_sales"] / np.maximum(agg["avg_discount"], 1e-6)
+        top3 = agg.sort_values("sales_per_discount_point", ascending=False).head(3)
+        bottom3 = agg.sort_values("sales_per_discount_point", ascending=True).head(3)
 
-    st.plotly_chart(fig, use_container_width=True)
-
-    # ---- quick takeaway list (top/bottom 3 categories by sales efficiency)
-    # efficiency = sales per discount point (rough proxy)
-    agg["sales_per_discount_point"] = agg["net_sales"] / np.maximum(agg["avg_discount"], 1e-6)
-    top3 = agg.sort_values("sales_per_discount_point", ascending=False).head(3)[["category","sales_per_discount_point"]]
-    bottom3 = agg.sort_values("sales_per_discount_point", ascending=True).head(3)[["category","sales_per_discount_point"]]
-
-    col_a, col_b = st.columns(2)
-    with col_a:
-        st.markdown("**Top efficiency (sales per discount point)**")
-        st.dataframe(top3.assign(sales_per_discount_point=lambda d: d["sales_per_discount_point"].map("{:,.0f}".format)),
-                     hide_index=True, use_container_width=True)
-    with col_b:
-        st.markdown("**Bottom efficiency (needs review)**")
-        st.dataframe(bottom3.assign(sales_per_discount_point=lambda d: d["sales_per_discount_point"].map("{:,.0f}".format)),
-                     hide_index=True, use_container_width=True)
-
+        col_a, col_b = st.columns(2)
+        format_func = lambda d: d["sales_per_discount_point"].map("{:,.0f}".format)
+        with col_a:
+            st.markdown("**Top efficiency**")
+            st.dataframe(top3[["category","sales_per_discount_point"]].assign(sales_per_discount_point=format_func),
+                         hide_index=True, use_container_width=True)
+        with col_b:
+            st.markdown("**Bottom efficiency**")
+            st.dataframe(bottom3[["category","sales_per_discount_point"]].assign(sales_per_discount_point=format_func),
+                         hide_index=True, use_container_width=True)
+    else:
+        st.info("Insufficient data for scatter plot after cleaning.")
 else:
-    st.info("Need columns: discount, net_sales, category.")
+    st.info(f"Need columns: {', '.join(needed)}.")
 
-
-# ------------------------------------------
-# Detail table + download
-# ------------------------------------------
+# --- Detail Table + Download ---
 st.subheader("Detailed Transactions")
 show_cols = [
     c for c in [
@@ -398,4 +296,4 @@ st.dataframe(
 csv = fdf[show_cols].to_csv(index=False).encode("utf-8")
 st.download_button("⬇️ Download filtered data (CSV)", data=csv, file_name="filtered_sales.csv", mime="text/csv")
 
-st.caption("Note: Discounts are treated as fractions (e.g., 0.10 = 10%). If your data stores 10 as 10%, divide by 100 before upload.")
+st.caption("Note: Discounts are treated as fractions (e.g., 0.10 = 10%).")
