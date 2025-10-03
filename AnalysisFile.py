@@ -24,6 +24,28 @@ h3 { padding: .35rem .6rem; background: rgba(37,99,235,.12); border-left: 3px so
 .stMetric { background: #fff; border: 1px solid rgba(0,0,0,.06); border-radius: 12px; padding: .6rem .8rem; color: black;}
 section[data-testid="stSidebar"] { background: #f8fafc; }
 .st-emotion-cache-1wivap2{color:black;}
+
+/* Targets all general text and labels in the sidebar */
+section[data-testid="stSidebar"] {
+    color: #000000 !important; /* General text color for all elements */
+}
+
+/* Targets specific heading elements (like "🔧 Filters") */
+[data-testid="stSidebar"] h1, 
+[data-testid="stSidebar"] h2, 
+[data-testid="stSidebar"] h3 {
+    color: #000000 !important;
+}
+
+/* Targets the smaller caption text */
+[data-testid="stSidebar"] .stMarkdown {
+    color: #000000 !important;
+}
+
+/* Targets the multiselect labels and date input labels */
+[data-testid="stSidebar"] label {
+    color: #000000 !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
