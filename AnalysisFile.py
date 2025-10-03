@@ -21,7 +21,7 @@ def style_fig(fig, height=380, ytitle=None):
 st.markdown("""
 <style>
 h3 { padding: .35rem .6rem; background: rgba(37,99,235,.12); border-left: 3px solid #2563eb; border-radius: 6px; }
-.stMetric { background: #fff; border: 1px solid rgba(0,0,0,.06); border-radius: 12px; padding: .6rem .8rem; }
+.stMetric { background: #fff; border: 1px solid rgba(0,0,0,.06); border-radius: 12px; padding: .6rem .8rem; color: black;}
 section[data-testid="stSidebar"] { background: #f8fafc; }
 </style>
 """, unsafe_allow_html=True)
